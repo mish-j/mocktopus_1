@@ -1,0 +1,61 @@
+category,question_text
+Software-Engineering,Explain the difference between object-oriented and functional programming paradigms
+Software-Engineering,What are SOLID principles and how do they improve code quality?
+Software-Engineering,How do you implement design patterns like Singleton Factory and Observer?
+Software-Engineering,What's the difference between unit testing integration testing and end-to-end testing?
+Software-Engineering,How do you handle version control conflicts in Git?
+Software-Engineering,Explain the concept of dependency injection and its benefits
+Software-Engineering,What are the key principles of clean code architecture?
+Software-Engineering,How do you optimize database queries for better performance?
+Software-Engineering,What's the difference between SQL and NoSQL databases?
+Software-Engineering,How do you implement authentication and authorization in web applications?
+Software-Engineering,Explain the MVC (Model-View-Controller) design pattern
+Software-Engineering,What are RESTful APIs and how do they differ from GraphQL?
+Software-Engineering,How do you handle error handling and logging in applications?
+Software-Engineering,What's the difference between synchronous and asynchronous programming?
+Software-Engineering,How do you implement caching strategies to improve application performance?
+Software-Engineering,Explain the concept of code refactoring and when to apply it
+Software-Engineering,What are the benefits of using containerization with Docker?
+Software-Engineering,How do you ensure code security and prevent common vulnerabilities?
+Software-Engineering,What's the difference between compiled and interpreted programming languages?
+Software-Engineering,How do you implement continuous integration and continuous deployment (CI/CD)?
+Data-Science,Explain the difference between supervised and unsupervised machine learning
+Data-Science,How do you handle missing data in a dataset?
+Data-Science,What's the difference between correlation and causation?
+Data-Science,How do you prevent overfitting in machine learning models?
+Data-Science,Explain the bias-variance tradeoff in machine learning
+Data-Science,What are the steps involved in the data science lifecycle?
+Data-Science,How do you evaluate the performance of a classification model?
+Data-Science,What's the difference between bagging and boosting ensemble methods?
+Data-Science,How do you handle imbalanced datasets in machine learning?
+Data-Science,Explain the concept of feature engineering and its importance
+Data-Science,What's the difference between parametric and non-parametric models?
+Data-Science,How do you perform exploratory data analysis (EDA)?
+Data-Science,What are the assumptions of linear regression?
+Data-Science,How do you choose the right machine learning algorithm for a problem?
+Data-Science,Explain the concept of cross-validation and its types
+Data-Science,What's the difference between precision recall and F1-score?
+Data-Science,How do you handle categorical variables in machine learning?
+Data-Science,What are the different types of data scaling techniques?
+Data-Science,How do you detect and handle outliers in your data?
+Data-Science,Explain the working of decision trees and random forests
+System-Design,How would you design a URL shortening service like bit.ly?
+System-Design,Design a scalable chat application like WhatsApp
+System-Design,How do you design a distributed caching system?
+System-Design,Design a social media feed system like Twitter
+System-Design,How would you design a video streaming service like YouTube?
+System-Design,Design a ride-sharing service like Uber
+System-Design,How do you handle load balancing in a distributed system?
+System-Design,Design a search engine like Google
+System-Design,How would you design a file storage system like Dropbox?
+System-Design,Design a notification system for mobile applications
+System-Design,How do you ensure data consistency in distributed databases?
+System-Design,Design an e-commerce platform with inventory management
+System-Design,How would you design a real-time analytics system?
+System-Design,Design a content delivery network (CDN)
+System-Design,How do you handle database sharding and replication?
+System-Design,Design a logging and monitoring system for microservices
+System-Design,How would you design a payment processing system?
+System-Design,Design a recommendation system like Netflix
+System-Design,How do you implement rate limiting in API design?
+System-Design,Design a distributed task queue system
