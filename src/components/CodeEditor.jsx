@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { debounce } from '../utils/resizeObserverFix';
 import { API_BASE_URL } from '../utils/config';
+import { authenticatedFetch } from '../utils/auth';
 
 // Import the ResizeObserver fix
 import '../utils/resizeObserverFix';
@@ -17,6 +18,9 @@ const CodeEditor = ({ roomId, bothUsersJoined }) => {
   const [isUpdatingFromRemote, setIsUpdatingFromRemote] = useState(false);
   const [editorError, setEditorError] = useState(false);
   const [editorLoaded, setEditorLoaded] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'synced', 'error'
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [partnerTyping, setPartnerTyping] = useState(false);
 
   const languages = [
     { id: 'javascript', name: 'JavaScript', icon: '🟨' },
@@ -126,12 +130,11 @@ const CodeEditor = ({ roomId, bothUsersJoined }) => {
     try {
       setIsRunning(true);
 
-      // Send code to Django backend for execution
-      const response = await fetch(`${API_BASE_URL}/api/code/execute/`, {
+      // Send code to Django backend for execution using authenticated fetch
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/code/execute/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
         body: JSON.stringify({
           language: language,
@@ -151,11 +154,7 @@ const CodeEditor = ({ roomId, bothUsersJoined }) => {
       // Poll for execution result
       const pollResult = async () => {
         try {
-          const resultResponse = await fetch(`${API_BASE_URL}/api/code/result/${executionId}/`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-            }
-          });
+          const resultResponse = await authenticatedFetch(`${API_BASE_URL}/api/code/result/${executionId}/`);
 
           if (!resultResponse.ok) {
             throw new Error('Failed to get execution result');
@@ -205,107 +204,125 @@ const CodeEditor = ({ roomId, bothUsersJoined }) => {
     console.log('Code reset to default');
   };
 
-  // Debounced function to sync code to backend
+  // Simplified function to sync code to backend
   const syncCodeToBackend = useCallback(
     debounce(async (codeValue) => {
       if (!roomId || !bothUsersJoined || isUpdatingFromRemote) return;
       
-      // Only sync if it's substantial code (not just default template)
-      if (!codeValue || codeValue.length < 50) return;
-      
       try {
-        console.log('Syncing code to backend:', codeValue.substring(0, 50) + '...');
-        await fetch(`${API_BASE_URL}/api/interviews/room-code/${roomId}/`, {
+        setSyncStatus('syncing');
+        console.log('Syncing code to backend:', codeValue ? codeValue.substring(0, 50) + '...' : 'empty');
+        
+        const response = await authenticatedFetch(`${API_BASE_URL}/api/interviews/room-code/${roomId}/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
           },
           body: JSON.stringify({ 
-            code: codeValue,
+            code: codeValue || '',
             language: language 
           }),
         });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: Failed to sync code`);
+        }
+        
+        setSyncStatus('synced');
+        console.log('✅ Code synced successfully');
+        setLastSyncTime(new Date());
+        
+        // Reset status after a short delay
+        setTimeout(() => setSyncStatus('idle'), 2000);
       } catch (error) {
-        console.error('Error syncing code:', error);
+        setSyncStatus('error');
+        console.error('❌ Error syncing code:', error);
+        setTimeout(() => setSyncStatus('idle'), 3000);
       }
-    }, 1000),
+    }, 800),
     [roomId, bothUsersJoined, language, isUpdatingFromRemote]
   );
 
-  // Function to sync language change to backend
+  // Simplified function to sync language change to backend
   const syncLanguageToBackend = useCallback(async (newLanguage, newCode) => {
     if (!roomId || !bothUsersJoined) return;
     
     try {
       console.log('Syncing language change to backend:', newLanguage);
-      await fetch(`${API_BASE_URL}/api/interviews/room-code/${roomId}/`, {
+      
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/interviews/room-code/${roomId}/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
         body: JSON.stringify({ 
-          code: newCode,
+          code: newCode || '',
           language: newLanguage 
         }),
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Failed to sync language`);
+      }
+      
+      console.log('✅ Language synced successfully');
     } catch (error) {
-      console.error('Error syncing language:', error);
+      console.error('❌ Error syncing language:', error);
     }
   }, [roomId, bothUsersJoined]);
 
-  // Function to fetch shared code from backend
+  // Simplified function to fetch shared code from backend
   const fetchSharedCode = useCallback(async () => {
     if (!roomId || !bothUsersJoined) return;
     
     try {
-      const res = await fetch(`${API_BASE_URL}/api/interviews/room-code/${roomId}/`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-        },
-      });
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/interviews/room-code/${roomId}/`);
       
-      if (res.ok) {
-        const data = await res.json();
-        console.log('Fetched shared code:', data);
-        
-        // Only update if there's actual shared code that's different
-        if (data.code && 
-            data.code.trim() !== '' && 
-            data.code !== code && 
-            data.code.length > 100) { // Only sync substantial code changes
-          
-          console.log('Updating code from remote:', data.code.substring(0, 50) + '...');
-          setIsUpdatingFromRemote(true);
-          setCode(data.code);
-          
-          // Update editor directly
-          if (editorRef.current) {
-            editorRef.current.setValue(data.code);
-          }
-          
-          if (data.language && data.language !== language) {
-            setLanguage(data.language);
-          }
-          
-          setTimeout(() => setIsUpdatingFromRemote(false), 100);
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Failed to fetch code`);
       }
+      
+      const data = await response.json();
+      console.log('📥 Fetched shared code from backend');
+      
+      // Update if there's different code or language
+      if (data.code !== undefined && data.code !== code) {
+        console.log('🔄 Updating code from remote');
+        setPartnerTyping(true);
+        setIsUpdatingFromRemote(true);
+        setCode(data.code);
+        
+        if (editorRef.current) {
+          editorRef.current.setValue(data.code);
+        }
+        
+        setLastSyncTime(new Date());
+        
+        setTimeout(() => {
+          setIsUpdatingFromRemote(false);
+          setPartnerTyping(false);
+        }, 500);
+      }
+      
+      if (data.language && data.language !== language) {
+        console.log('🔄 Updating language from remote:', data.language);
+        setLanguage(data.language);
+      }
+      
     } catch (error) {
-      console.error('Error fetching shared code:', error);
+      console.error('❌ Error fetching shared code:', error);
     }
   }, [roomId, bothUsersJoined, code, language]);
 
-  // Handle code changes with collaborative sync
+  // Simplified handle code changes with immediate sync
   const handleCodeChange = useCallback((value) => {
     if (isUpdatingFromRemote) return;
     
-    console.log('Code changed:', value ? value.substring(0, 50) + '...' : 'empty');
+    console.log('📝 Code changed by user');
     setCode(value || '');
     
-    // Sync to backend if both users have joined and it's substantial code
-    if (bothUsersJoined && roomId && value && value.length > 100) {
+    // Sync to backend immediately for all changes when both users are present
+    if (bothUsersJoined && roomId) {
       syncCodeToBackend(value || '');
     }
   }, [bothUsersJoined, roomId, syncCodeToBackend, isUpdatingFromRemote]);
@@ -357,15 +374,20 @@ const CodeEditor = ({ roomId, bothUsersJoined }) => {
     };
   }, []);
 
-  // Poll for collaborative code changes
+  // Simplified polling for collaborative code changes
   useEffect(() => {
     if (!roomId || !bothUsersJoined) return;
 
+    console.log('🔄 Starting code sync polling for room:', roomId);
+    
     const interval = setInterval(() => {
       fetchSharedCode();
-    }, 2000); // Poll every 2 seconds
+    }, 1500); // Poll every 1.5 seconds for faster sync
 
-    return () => clearInterval(interval);
+    return () => {
+      console.log('🛑 Stopping code sync polling');
+      clearInterval(interval);
+    };
   }, [roomId, bothUsersJoined, fetchSharedCode]);
 
   // Force refresh editor content when both users join
@@ -465,6 +487,31 @@ const CodeEditor = ({ roomId, bothUsersJoined }) => {
                 </option>
               ))}
             </select>
+
+            {/* Sync Status Indicator */}
+            {bothUsersJoined && (
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  partnerTyping ? 'bg-blue-500 animate-bounce' :
+                  syncStatus === 'syncing' ? 'bg-yellow-500 animate-pulse' :
+                  syncStatus === 'synced' ? 'bg-green-500' :
+                  syncStatus === 'error' ? 'bg-red-500' :
+                  'bg-gray-500'
+                }`}></div>
+                <span className="text-xs text-gray-300">
+                  {partnerTyping ? 'Partner typing...' :
+                   syncStatus === 'syncing' ? 'Syncing...' :
+                   syncStatus === 'synced' ? 'Synced' :
+                   syncStatus === 'error' ? 'Sync Error' :
+                   'Live Sync'}
+                </span>
+                {lastSyncTime && (
+                  <span className="text-xs text-gray-400">
+                    {lastSyncTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -602,11 +649,19 @@ const CodeEditor = ({ roomId, bothUsersJoined }) => {
           <div className="flex items-center space-x-4">
             <span>Language: {languages.find(l => l.id === language)?.name}</span>
             <span>Theme: {themes.find(t => t.id === theme)?.name}</span>
+            {bothUsersJoined && (
+              <span className="text-green-400">🤝 Collaborative Mode</span>
+            )}
           </div>
           <div className="flex items-center space-x-4">
             <span>Ln 1, Col 1</span>
             <span>UTF-8</span>
             <span>Spaces: 2</span>
+            {bothUsersJoined && lastSyncTime && (
+              <span className="text-blue-400">
+                Last sync: {lastSyncTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}
+              </span>
+            )}
           </div>
         </div>
       </div>
