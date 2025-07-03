@@ -15,7 +15,7 @@ const VideoCall = forwardRef(({ roomId, isMinimized, onToggleMinimize }, ref) =>
   const [remoteUsers, setRemoteUsers] = useState([]);
 
   // Agora configuration
-  const APP_ID = '81415b55057649bcb7d6b0a29607c465';
+  const APP_ID = process.env.REACT_APP_AGORA_APP_ID || '81415b55057649bcb7d6b0a29607c465';
   const TOKEN = null; // For testing without authentication
 
   // Initialize Agora
@@ -40,30 +40,69 @@ const VideoCall = forwardRef(({ roomId, isMinimized, onToggleMinimize }, ref) =>
             if (remoteVideoRef.current) {
               remoteVideoTrack.play(remoteVideoRef.current);
             }
-            setRemoteUsers(prev => [...prev.filter(u => u.uid !== user.uid), user]);
+            // Update remote users list
+            setRemoteUsers(prev => {
+              const filtered = prev.filter(u => u.uid !== user.uid);
+              return [...filtered, user];
+            });
+            // Automatically activate call when remote user joins
             setIsCallActive(true);
             setConnectionStatus('connected');
+            console.log('Remote user video connected - call activated');
           }
           
           if (mediaType === 'audio') {
             user.audioTrack.play();
+            console.log('Remote user audio connected');
           }
         });
 
         client.on('user-unpublished', (user, mediaType) => {
           console.log('User unpublished:', user.uid, mediaType);
           if (mediaType === 'video') {
-            setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
+            setRemoteUsers(prev => {
+              const updatedUsers = prev.filter(u => u.uid !== user.uid);
+              // If no more video users, deactivate call
+              if (updatedUsers.length === 0) {
+                setIsCallActive(false);
+                setConnectionStatus('ready');
+                console.log('No remote users - call deactivated');
+              }
+              return updatedUsers;
+            });
           }
         });
 
         client.on('user-left', (user) => {
           console.log('User left:', user.uid);
-          setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
-          if (remoteUsers.length <= 1) {
-            setIsCallActive(false);
+          setRemoteUsers(prev => {
+            const updatedUsers = prev.filter(u => u.uid !== user.uid);
+            // If no more users, deactivate call
+            if (updatedUsers.length === 0) {
+              setIsCallActive(false);
+              setConnectionStatus('ready');
+              console.log('User left - call deactivated');
+            }
+            return updatedUsers;
+          });
+        });
+
+        // Additional event listeners for better connection handling
+        client.on('connection-state-change', (curState, revState) => {
+          console.log('Connection state changed:', curState, 'from:', revState);
+          if (curState === 'CONNECTED') {
             setConnectionStatus('ready');
+          } else if (curState === 'CONNECTING') {
+            setConnectionStatus('connecting');
+          } else if (curState === 'DISCONNECTED') {
+            setConnectionStatus('disconnected');
+            setIsCallActive(false);
           }
+        });
+
+        client.on('user-joined', (user) => {
+          console.log('User joined channel:', user.uid);
+          // This fires when any user joins, even before they publish
         });
 
         // Join channel
@@ -123,6 +162,19 @@ const VideoCall = forwardRef(({ roomId, isMinimized, onToggleMinimize }, ref) =>
       cleanup();
     };
   }, [roomId]);
+
+  // Monitor remote users and update call status
+  useEffect(() => {
+    if (remoteUsers.length > 0) {
+      setIsCallActive(true);
+      setConnectionStatus('connected');
+      console.log('Remote users detected, activating call:', remoteUsers.length);
+    } else if (connectionStatus === 'connected') {
+      setIsCallActive(false);
+      setConnectionStatus('ready');
+      console.log('No remote users, deactivating call');
+    }
+  }, [remoteUsers, connectionStatus]);
 
   // Cleanup function
   const cleanup = async () => {

@@ -283,6 +283,14 @@ const InterviewRoom = () => {
         if (res.ok) {
           const data = await res.json();
           
+          // Log the polling data for debugging
+          console.log('📡 Polling update:', {
+            partner_joined: data.partner_joined,
+            both_users_joined: data.both_users_joined,
+            current_partner: partnerConnected,
+            current_both: bothUsersJoined
+          });
+          
           // Update room data
           setRoomData(prevData => ({
             ...prevData,
@@ -290,12 +298,23 @@ const InterviewRoom = () => {
             partner_joined: data.partner_joined,
             interview_started: data.interview_started,
             time_remaining: data.time_remaining,
-            current_interviewer: data.current_interviewer
+            current_interviewer: data.current_interviewer,
+            partner_username: data.partner_username
           }));
           
-          // Update connection status
-          setPartnerConnected(data.partner_joined || false);
-          setBothUsersJoined(data.both_users_joined || false);
+          // Update connection status with immediate UI feedback
+          const newPartnerConnected = data.partner_joined || false;
+          const newBothUsersJoined = data.both_users_joined || false;
+          
+          if (newPartnerConnected !== partnerConnected) {
+            console.log('🔔 Partner connection status changed:', newPartnerConnected ? 'CONNECTED' : 'DISCONNECTED');
+            setPartnerConnected(newPartnerConnected);
+          }
+          
+          if (newBothUsersJoined !== bothUsersJoined) {
+            console.log('🔔 Both users status changed:', newBothUsersJoined ? 'BOTH JOINED' : 'WAITING');
+            setBothUsersJoined(newBothUsersJoined);
+          }
           
           // Sync current interviewer from backend (for role switching sync)
           if (data.current_interviewer && data.current_interviewer !== currentInterviewer) {
@@ -316,7 +335,7 @@ const InterviewRoom = () => {
             setTimerStarted(data.interview_started || false);
           }
           
-          console.log("Status update - Partner:", data.partner_joined ? "Connected" : "Not connected", "Timer:", data.time_remaining);
+          console.log("📊 Status update - Partner:", newPartnerConnected ? "Connected" : "Not connected", "Both joined:", newBothUsersJoined, "Timer:", data.time_remaining);
         }
       } catch (err) {
         console.error("Error polling for updates:", err);
@@ -324,15 +343,15 @@ const InterviewRoom = () => {
       }
     };
 
-    // Poll every 1 second for real-time sync (especially for timer)
-    const interval = setInterval(pollForUpdates, 1000);
+    // Poll every 2 seconds for real-time sync (reduced from 1 second to be less aggressive)
+    const interval = setInterval(pollForUpdates, 2000);
 
     return () => clearInterval(interval);
-  }, [room_id, bothUsersJoined]);
+  }, [room_id]); // Removed bothUsersJoined dependency to prevent recreation of polling
 
   // Poll for question changes (sync questions between users)
   useEffect(() => {
-    if (!bothUsersJoined) return;
+    if (!roomData) return; // Changed from bothUsersJoined to roomData check
 
     const pollForQuestion = async () => {
       try {
@@ -355,7 +374,7 @@ const InterviewRoom = () => {
     const interval = setInterval(pollForQuestion, 3000);
 
     return () => clearInterval(interval);
-  }, [room_id, bothUsersJoined, currentQuestion?.id]);
+  }, [room_id, currentQuestion?.id]); // Removed bothUsersJoined dependency
 
   // Timer useEffect - Only syncs from backend, no local countdown
   useEffect(() => {
